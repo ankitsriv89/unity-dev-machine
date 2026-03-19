@@ -1,0 +1,23 @@
+# Copy this file to terraform/terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored and will not be committed.
+
+# --- Required ---
+region           = "ap-south-1"
+my_ip            = ""                # Your public IP (run: curl -s https://checkip.amazonaws.com)
+windows_password = ""                # Windows Administrator password
+public_key_path  = "~/.ssh/id_ed25519.pub"  # Path to your SSH public key
+alert_email      = ""                # Email for auto-stop/terminate alerts
+alert_phone      = ""                # Phone for SMS alerts (E.164 format, e.g., +919876543210)
+keep_alive_pin   = ""                # PIN for the keep-alive command on the VM
+
+# --- Optional ---
+project_name     = "unity-dev"       # Project name (used for resource naming and tagging)
+instance_type    = "g4dn.xlarge"     # EC2 instance type (g4dn.xlarge for T4, g5.xlarge for A10G)
+ami_id           = ""                # Custom AMI ID (leave empty to auto-select latest Windows Server 2022)
+spot_max_price   = "0.25"            # Max hourly price for spot instance (USD)
+max_runtime_hours = 4                # Max hours before auto-terminate (hard cap)
+
+# --- Backend (edit directly in main.tf, cannot use variables) ---
+# S3 bucket for Terraform state
+# State file key path
+# Region for the backend
