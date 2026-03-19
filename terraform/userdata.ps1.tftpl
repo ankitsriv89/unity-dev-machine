@@ -1,0 +1,34 @@
+<powershell>
+net user Administrator "${windows_password}"
+
+# --- Idle Shutdown Setup ---
+$installDir = "C:\idle-shutdown"
+New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+
+# Write idle-shutdown.ps1
+@'
+${idle_shutdown_script}
+'@ | Out-File -FilePath "$installDir\idle-shutdown.ps1" -Encoding UTF8 -Force
+
+# Write keep-alive.ps1
+@'
+${keep_alive_script}
+'@ | Out-File -FilePath "$installDir\keep-alive.ps1" -Encoding UTF8 -Force
+
+# Create keep-alive.cmd wrapper
+'@echo off
+powershell.exe -ExecutionPolicy Bypass -File "C:\idle-shutdown\keep-alive.ps1" %*' | Out-File -FilePath "$installDir\keep-alive.cmd" -Encoding ASCII -Force
+
+# Add to PATH
+$currentPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
+if ($currentPath -notlike "*$installDir*") {
+    [Environment]::SetEnvironmentVariable("PATH", "$currentPath;$installDir", "Machine")
+}
+
+# Register scheduled task
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installDir\idle-shutdown.ps1`""
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At "00:00" -RepetitionInterval (New-TimeSpan -Minutes 5)).Repetition
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+Register-ScheduledTask -TaskName "IdleShutdown" -Action $action -Trigger $trigger -Settings $settings -User "SYSTEM" -RunLevel Highest -Description "Auto-stop after 1hr idle" -Force | Out-Null
+</powershell>

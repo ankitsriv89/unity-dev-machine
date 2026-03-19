@@ -2,7 +2,7 @@
 # terraform.tfvars is gitignored and will not be committed.
 
 # --- Required ---
-region           = "ap-south-1"
+region           = ""                 # AWS region (e.g., us-east-1, ap-south-1)
 my_ip            = ""                # Your public IP (run: curl -s https://checkip.amazonaws.com)
 windows_password = ""                # Windows Administrator password
 public_key_path  = "~/.ssh/id_ed25519.pub"  # Path to your SSH public key

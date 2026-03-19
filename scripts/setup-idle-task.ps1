@@ -2,7 +2,7 @@
 # One-time setup script. Run as Administrator on the dev VM.
 # Creates the idle-shutdown directory, copies scripts, and registers the scheduled task.
 #
-# Usage: .\setup-idle-task.ps1 -Region ap-south-1 -ProjectName unity-dev
+# Usage: .\setup-idle-task.ps1 -Region <your-region> -ProjectName <your-project-name>
 
 param(
     [Parameter(Mandatory=$true)]

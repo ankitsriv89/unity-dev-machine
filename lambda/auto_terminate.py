@@ -20,8 +20,8 @@ def get_instance(ec2, project_tag, instance_name):
 
 def handler(event, context):
     region = os.environ["REGION"]
-    project_tag = os.environ.get("PROJECT_TAG", "unity-dev")
-    instance_name = os.environ.get("INSTANCE_NAME", "unity-dev-machine")
+    project_tag = os.environ["PROJECT_TAG"]
+    instance_name = os.environ["INSTANCE_NAME"]
     max_hours = int(os.environ.get("MAX_RUNTIME_HOURS", "4"))
     sns_topic_arn = os.environ["SNS_TOPIC_ARN"]
     warning_minutes = 15

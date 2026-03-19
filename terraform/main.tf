@@ -2,7 +2,7 @@ terraform {
   backend "s3" {
     bucket  = ""  # Your S3 bucket for Terraform state
     key     = ""  # e.g., "unity-dev/terraform.tfstate"
-    region  = ""  # e.g., "ap-south-1"
+    region  = ""  # e.g., "us-east-1"
     encrypt = true
   }
 
@@ -20,6 +20,13 @@ provider "aws" {
 
 locals {
   instance_name = "${var.project_name}-machine"
+  selected_ami  = var.ami_id != "" ? var.ami_id : data.aws_ami.windows_nvidia.id
+
+  user_data = templatefile("${path.module}/userdata.ps1.tftpl", {
+    windows_password     = var.windows_password
+    idle_shutdown_script = file("${path.module}/../scripts/idle-shutdown.ps1")
+    keep_alive_script    = file("${path.module}/../scripts/keep-alive.ps1")
+  })
 }
 
 # --- Data sources ---
@@ -185,97 +192,9 @@ resource "aws_ebs_volume" "unity_data" {
 }
 
 # --- EC2 Instance ---
-
-resource "aws_instance" "unity_dev" {
-  ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.windows_nvidia.id
-  instance_type          = var.instance_type
-  key_name               = aws_key_pair.unity_dev.key_name
-  vpc_security_group_ids = [aws_security_group.unity_dev.id]
-  availability_zone      = "${var.region}a"
-  iam_instance_profile   = aws_iam_instance_profile.unity_dev.name
-
-  # Set admin password and install idle-shutdown at boot
-  user_data = <<-EOF
-    <powershell>
-    net user Administrator "${var.windows_password}"
-
-    # --- Idle Shutdown Setup ---
-    $installDir = "C:\idle-shutdown"
-    New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-
-    # Write idle-shutdown.ps1
-    @'
-${file("${path.module}/../scripts/idle-shutdown.ps1")}
-'@ | Out-File -FilePath "$installDir\idle-shutdown.ps1" -Encoding UTF8 -Force
-
-    # Write keep-alive.ps1
-    @'
-${file("${path.module}/../scripts/keep-alive.ps1")}
-'@ | Out-File -FilePath "$installDir\keep-alive.ps1" -Encoding UTF8 -Force
-
-    # Create keep-alive.cmd wrapper
-    '@echo off
-    powershell.exe -ExecutionPolicy Bypass -File "C:\idle-shutdown\keep-alive.ps1" %*' | Out-File -FilePath "$installDir\keep-alive.cmd" -Encoding ASCII -Force
-
-    # Add to PATH
-    $currentPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
-    if ($currentPath -notlike "*$installDir*") {
-        [Environment]::SetEnvironmentVariable("PATH", "$currentPath;$installDir", "Machine")
-    }
-
-    # Register scheduled task
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installDir\idle-shutdown.ps1`""
-    $trigger = New-ScheduledTaskTrigger -AtStartup
-    $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At "00:00" -RepetitionInterval (New-TimeSpan -Minutes 5)).Repetition
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
-    Register-ScheduledTask -TaskName "IdleShutdown" -Action $action -Trigger $trigger -Settings $settings -User "SYSTEM" -RunLevel Highest -Description "Auto-stop after 1hr idle" -Force | Out-Null
-    </powershell>
-  EOF
-
-  # Root volume (Windows OS)
-  root_block_device {
-    volume_size = 80
-    volume_type = "gp3"
-    encrypted   = true
-  }
-
-  lifecycle {
-    ignore_changes = [user_data, tags]
-  }
-
-  tags = {
-    Name    = local.instance_name
-    Project = var.project_name
-  }
-}
-
-# Attach persistent data volume
-resource "aws_volume_attachment" "unity_data" {
-  device_name = "/dev/xvdf"
-  volume_id   = aws_ebs_volume.unity_data.id
-  instance_id = aws_instance.unity_dev.id
-}
-
-# --- Spot Instance Alternative (uncomment to use instead of on-demand) ---
-
-# resource "aws_spot_instance_request" "unity_dev_spot" {
-#   ami                    = data.aws_ami.windows_nvidia.id
-#   instance_type          = var.instance_type
-#   key_name               = aws_key_pair.unity_dev.key_name
-#   vpc_security_group_ids = [aws_security_group.unity_dev.id]
-#   availability_zone      = "${var.region}a"
-#   spot_price             = var.spot_max_price
-#   wait_for_fulfillment   = true
-#   spot_type              = "one-time"
+# Choose ONE of the following instance configurations:
+#   instance-spot.tf     — Spot instance (cheaper, can be interrupted)
+#   instance-ondemand.tf — On-demand instance (reliable, can be stopped/started)
 #
-#   root_block_device {
-#     volume_size = 50
-#     volume_type = "gp3"
-#     encrypted   = true
-#   }
-#
-#   tags = {
-#     Name    = "${var.project_name}-spot"
-#     Project = var.project_name
-#   }
-# }
+# Enable one by renaming it to .tf, disable the other by renaming to .tf.disabled
+# By default, spot is enabled.

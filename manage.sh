@@ -3,11 +3,11 @@
 # Usage: ./manage.sh [start|stop|status|ip|password|update-ip|extend]
 #
 # Configure via environment variables or edit defaults below:
-#   INSTANCE_NAME - EC2 instance Name tag (default: unity-dev-machine)
-#   AWS_REGION    - AWS region (default: ap-south-1)
+#   INSTANCE_NAME - EC2 instance Name tag (e.g., unity-dev-machine)
+#   AWS_REGION    - AWS region (e.g., us-east-1)
 
-INSTANCE_NAME="${INSTANCE_NAME:-unity-dev-machine}"
-REGION="${AWS_REGION:-ap-south-1}"
+INSTANCE_NAME="${INSTANCE_NAME:?Set INSTANCE_NAME env var (e.g., unity-dev-machine)}"
+REGION="${AWS_REGION:?Set AWS_REGION env var (e.g., us-east-1)}"
 
 get_instance_id() {
   aws ec2 describe-instances \
@@ -19,22 +19,28 @@ get_instance_id() {
 
 case "$1" in
   start)
-    echo "Starting $INSTANCE_NAME..."
-    INSTANCE_ID=$(get_instance_id)
-    aws ec2 start-instances --region "$REGION" --instance-ids "$INSTANCE_ID"
-    echo "Waiting for instance to be running..."
-    aws ec2 wait instance-running --region "$REGION" --instance-ids "$INSTANCE_ID"
-    IP=$(aws ec2 describe-instances --region "$REGION" --instance-ids "$INSTANCE_ID" \
-      --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
-    echo "Machine is running at: $IP"
-    echo "Connect via RDP: $IP:3389 or DCV: https://$IP:8443"
+    echo "Launch via Terraform:"
+    echo "  cd terraform && terraform apply"
     ;;
 
   stop)
-    echo "Stopping $INSTANCE_NAME (EBS data preserved)..."
     INSTANCE_ID=$(get_instance_id)
-    aws ec2 stop-instances --region "$REGION" --instance-ids "$INSTANCE_ID"
-    echo "Machine stopped. Compute billing stopped."
+    if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+      echo "No running instance found."
+      exit 1
+    fi
+    # Check if spot or on-demand
+    LIFECYCLE=$(aws ec2 describe-instances --region "$REGION" --instance-ids "$INSTANCE_ID" \
+      --query "Reservations[0].Instances[0].InstanceLifecycle" --output text 2>/dev/null)
+    if [ "$LIFECYCLE" = "spot" ]; then
+      echo "Terminating $INSTANCE_NAME (spot — cannot be stopped, only terminated)..."
+      aws ec2 terminate-instances --region "$REGION" --instance-ids "$INSTANCE_ID"
+      echo "Instance terminated. D: drive (EBS) preserved."
+    else
+      echo "Stopping $INSTANCE_NAME (on-demand — EBS data preserved)..."
+      aws ec2 stop-instances --region "$REGION" --instance-ids "$INSTANCE_ID"
+      echo "Instance stopped. Compute billing stopped."
+    fi
     ;;
 
   status)
@@ -110,16 +116,16 @@ case "$1" in
   *)
     echo "Usage: ./manage.sh [start|stop|status|ip|password|update-ip|extend]"
     echo ""
-    echo "  start      - Start the machine"
-    echo "  stop       - Stop (preserves data, stops billing compute)"
+    echo "  start      - Show how to launch (via terraform apply)"
+    echo "  stop       - Stop (on-demand) or terminate (spot). D: drive preserved."
     echo "  status     - Show current state and IP"
     echo "  ip         - Get public IP"
     echo "  password   - Decrypt Windows admin password"
     echo "  update-ip  - Show your IP for terraform apply"
     echo "  extend     - Extend auto-stop/terminate (e.g., extend 3h, extend off)"
     echo ""
-    echo "Environment variables:"
-    echo "  INSTANCE_NAME  - EC2 Name tag (default: unity-dev-machine)"
-    echo "  AWS_REGION     - AWS region (default: ap-south-1)"
+    echo "Environment variables (required):"
+    echo "  INSTANCE_NAME  - EC2 Name tag (e.g., unity-dev-machine)"
+    echo "  AWS_REGION     - AWS region (e.g., us-east-1)"
     ;;
 esac

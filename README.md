@@ -55,7 +55,7 @@ Spin up a Windows EC2 instance with a GPU, develop in Unity, and shut it down wh
 
 1. **Clone and configure:**
    ```bash
-   git clone https://github.com/your-user/unity-dev-machine.git
+   git clone https://github.com/ankitsriv89/unitydev.git
    cd unity-dev-machine
    cp terraform.tfvars.example terraform/terraform.tfvars
    ```
@@ -76,7 +76,7 @@ Spin up a Windows EC2 instance with a GPU, develop in Unity, and shut it down wh
 6. **Connect to the instance** via RDP or Parsec, then run the idle-shutdown setup:
    ```powershell
    # Run as Administrator
-   .\setup-idle-task.ps1 -Region ap-south-1 -ProjectName unity-dev
+   .\setup-idle-task.ps1 -Region <your-region> -ProjectName <your-project-name>
    ```
 
 ## Usage
@@ -106,8 +106,8 @@ keep-alive off --pin 1234      # Cancel
 ### Environment Variables
 
 ```bash
-export INSTANCE_NAME="my-dev-machine"  # Default: unity-dev-machine
-export AWS_REGION="us-east-1"          # Default: ap-south-1
+export INSTANCE_NAME="my-dev-machine"  # Required
+export AWS_REGION="us-east-1"          # Required
 ```
 
 ## Cost Estimates
