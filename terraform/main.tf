@@ -1,10 +1,11 @@
 terraform {
-  backend "s3" {
-    bucket  = ""  # Your S3 bucket for Terraform state
-    key     = ""  # e.g., "unity-dev/terraform.tfstate"
-    region  = ""  # e.g., "us-east-1"
-    encrypt = true
-  }
+  # Local backend by default. Uncomment below for S3 backend:
+  # backend "s3" {
+  #   bucket  = ""  # Your S3 bucket for Terraform state
+  #   key     = ""  # e.g., "unity-dev/terraform.tfstate"
+  #   region  = ""  # e.g., "us-east-1"
+  #   encrypt = true
+  # }
 
   required_providers {
     aws = {
@@ -21,6 +22,13 @@ provider "aws" {
 locals {
   instance_name = "${var.project_name}-machine"
   selected_ami  = var.ami_id != "" ? var.ami_id : data.aws_ami.windows_nvidia.id
+
+  # Default spot prices per instance type; override by setting spot_max_price in tfvars
+  spot_price_defaults = {
+    "g4dn.xlarge"  = "0.35"
+    "g4dn.2xlarge" = "0.55"
+  }
+  effective_spot_price = var.spot_max_price != "" ? var.spot_max_price : lookup(local.spot_price_defaults, var.instance_type, "0.50")
 
   user_data = templatefile("${path.module}/userdata.ps1.tftpl", {
     windows_password     = var.windows_password
@@ -57,7 +65,7 @@ resource "aws_security_group" "unity_dev" {
     from_port   = 3389
     to_port     = 3389
     protocol    = "tcp"
-    cidr_blocks = ["${var.my_ip}/32"]
+    cidr_blocks = [var.my_ip != "" ? "${var.my_ip}/32" : "0.0.0.0/0"]
     description = "RDP from my IP"
   }
 
@@ -66,7 +74,7 @@ resource "aws_security_group" "unity_dev" {
     from_port   = 8443
     to_port     = 8443
     protocol    = "tcp"
-    cidr_blocks = ["${var.my_ip}/32"]
+    cidr_blocks = [var.my_ip != "" ? "${var.my_ip}/32" : "0.0.0.0/0"]
     description = "NICE DCV from my IP"
   }
 
@@ -75,7 +83,7 @@ resource "aws_security_group" "unity_dev" {
     from_port   = 8000
     to_port     = 8100
     protocol    = "udp"
-    cidr_blocks = ["${var.my_ip}/32"]
+    cidr_blocks = [var.my_ip != "" ? "${var.my_ip}/32" : "0.0.0.0/0"]
     description = "Parsec from my IP"
   }
 
@@ -180,7 +188,7 @@ resource "aws_iam_instance_profile" "unity_dev" {
 
 resource "aws_ebs_volume" "unity_data" {
   availability_zone = "${var.region}a"
-  size              = 100
+  size              = 20
   type              = "gp3"
   iops              = 3000
   throughput        = 125

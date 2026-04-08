@@ -21,14 +21,16 @@ variable "public_key_path" {
 }
 
 variable "my_ip" {
-  description = "Your public IP (run: curl -s https://checkip.amazonaws.com)"
+  description = "Your public IP (leave empty to allow all IPs). Run: curl -s https://checkip.amazonaws.com"
   type        = string
+  default     = ""
 }
 
 variable "windows_password" {
-  description = "Windows Administrator password"
+  description = "Windows Administrator password (leave empty if AMI already has password set)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "ami_id" {
@@ -38,9 +40,15 @@ variable "ami_id" {
 }
 
 variable "spot_max_price" {
-  description = "Max hourly price for spot instance (USD)"
+  description = "Override spot max price. Leave empty to use the default per instance_type (xlarge=0.35, 2xlarge=0.55)"
   type        = string
-  default     = "0.25"
+  default     = ""
+}
+
+variable "on_demand" {
+  description = "Set to true to use on-demand instead of spot. Pass via CLI: -var='on_demand=true'"
+  type        = bool
+  default     = false
 }
 
 variable "max_runtime_hours" {

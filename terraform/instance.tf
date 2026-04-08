@@ -1,6 +1,4 @@
-# On-Demand Instance — reliable, can be stopped/started, no interruptions.
-# To use spot instead: rename this to instance-ondemand.tf.disabled
-# and rename instance-spot.tf.disabled to instance-spot.tf
+# Single instance resource — spot by default, on-demand with -var="on_demand=true"
 
 resource "aws_instance" "unity_dev" {
   ami                    = local.selected_ami
@@ -9,6 +7,18 @@ resource "aws_instance" "unity_dev" {
   vpc_security_group_ids = [aws_security_group.unity_dev.id]
   availability_zone      = "${var.region}a"
   iam_instance_profile   = aws_iam_instance_profile.unity_dev.name
+
+  dynamic "instance_market_options" {
+    for_each = var.on_demand ? [] : [1]
+    content {
+      market_type = "spot"
+      spot_options {
+        max_price                      = local.effective_spot_price
+        spot_instance_type             = "one-time"
+        instance_interruption_behavior = "terminate"
+      }
+    }
+  }
 
   user_data = local.user_data
 
@@ -45,4 +55,9 @@ output "instance_id" {
 output "public_ip" {
   description = "Public IP address (connect via RDP/DCV/Parsec)"
   value       = aws_instance.unity_dev.public_ip
+}
+
+output "spot_price" {
+  description = "Effective spot price bid (null if on-demand)"
+  value       = var.on_demand ? null : local.effective_spot_price
 }
